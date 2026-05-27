@@ -1,0 +1,27 @@
+FROM zricethezav/gitleaks:v8.21.2 AS gitleaks
+FROM python:3.11.9-slim
+
+# Install git, scanners, and bake Semgrep rules for offline Zero-Trust scanning
+RUN apt-get update && apt-get install -y --no-install-recommends git wget && \
+    pip install --no-cache-dir semgrep==1.90.0 bandit==1.7.10 && \
+    mkdir -p /semgrep-rules && \
+    wget -O /semgrep-rules/default.yml https://semgrep.dev/c/p/default && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy gitleaks binary from the official image
+COPY --from=gitleaks /usr/bin/gitleaks /usr/bin/gitleaks
+
+# Create a non-root user and give it ownership of the scan directory
+RUN useradd -m -s /bin/bash scanner_user && \
+    mkdir -p /scan_repo && \
+    chown scanner_user:scanner_user /scan_repo
+
+# Copy the orchestrator and custom scanner scripts
+COPY entrypoint.py /entrypoint.py
+COPY hook_scanner.py /hook_scanner.py
+COPY anomaly_scanner.py /anomaly_scanner.py
+
+# Switch to the non-root user (used for both clone and scan containers)
+USER scanner_user
+
+ENTRYPOINT ["python", "/entrypoint.py"]

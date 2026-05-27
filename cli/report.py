@@ -1,0 +1,174 @@
+import json
+import datetime
+import html
+from urllib.parse import urlparse
+
+def generate_html_report(result) -> str:
+    """
+    Generates a minimalist, monotone HTML report from a ScanResult.
+    All user-controlled strings are escaped to prevent XSS.
+    """
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    repo_name = urlparse(result.repo_url).path.strip('/')
+    if not repo_name:
+        repo_name = result.repo_url
+    
+    # Escape all user-controlled values before inserting into HTML
+    safe_repo_url = html.escape(result.repo_url)
+    safe_repo_name = html.escape(repo_name)
+    safe_summary = html.escape(result.summary)
+    safe_timestamp = html.escape(timestamp)
+        
+    status_text = "PASSED" if result.is_clean else "FAILED"
+    status_class = "status-passed" if result.is_clean else "status-failed"
+    
+    # Generate rows from unified Finding objects
+    rows_html = ""
+    for finding in result.findings:
+        sev = html.escape(finding.severity)
+        cat = html.escape(finding.category)
+        title = html.escape(finding.title)
+        detail = html.escape(finding.detail) if finding.detail else ""
+        file_info = html.escape(finding.file) if finding.file else ""
+        line_info = f":{finding.line}" if finding.line else ""
+        
+        # Build a rich description with file location when available
+        desc_parts = [title]
+        if detail and detail != title:
+            desc_parts.append(detail)
+        if file_info:
+            desc_parts.append(f"<em>{file_info}{line_info}</em>")
+        
+        msg = "<br>".join(desc_parts)
+        rows_html += f"""
+            <tr>
+                <td>{sev}</td>
+                <td>{cat}</td>
+                <td>{msg}</td>
+            </tr>
+        """
+        
+    if not result.findings:
+        rows_html = """
+            <tr>
+                <td colspan="3" class="text-center">No vulnerabilities found. Codebase is clean.</td>
+            </tr>
+        """
+
+    # Risk score display
+    score = result.risk_score
+    score_display = f"{score:.1f} / 10.0" if score > 0 else "0.0 (Clean)"
+        
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RepoShield Audit Report: {safe_repo_name}</title>
+    <style>
+        body {{
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #ffffff;
+            color: #000000;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+        }}
+        .container {{
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 2px solid #000000;
+            padding: 30px;
+        }}
+        h1, h2, h3 {{
+            text-transform: uppercase;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 10px;
+        }}
+        .meta-info {{
+            margin-bottom: 30px;
+        }}
+        .meta-info p {{
+            margin: 5px 0;
+            font-weight: bold;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }}
+        th, td {{
+            border: 1px solid #000000;
+            padding: 12px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #000000;
+            color: #ffffff;
+            text-transform: uppercase;
+        }}
+        .text-center {{
+            text-align: center;
+        }}
+        .status-passed {{
+            color: #000000;
+            border: 2px solid #000000;
+            padding: 5px 10px;
+            display: inline-block;
+        }}
+        .status-failed {{
+            color: #ffffff;
+            background-color: #000000;
+            padding: 5px 10px;
+            display: inline-block;
+        }}
+        .footer {{
+            margin-top: 50px;
+            text-align: center;
+            font-size: 0.9em;
+            border-top: 1px solid #000000;
+            padding-top: 10px;
+        }}
+        em {{
+            font-style: italic;
+            color: #555;
+        }}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>RepoShield Security Audit</h1>
+    
+    <div class="meta-info">
+        <p>Target Repository: <span>{safe_repo_url}</span></p>
+        <p>Scan Date: <span>{safe_timestamp}</span></p>
+        <p>Overall Status: <span class="{status_class}">{status_text}</span></p>
+        <p>Risk Score: <span>{score_display}</span></p>
+        <p>Summary: <span>{safe_summary}</span></p>
+    </div>
+
+    <h2>Detailed Findings</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%">Severity</th>
+                <th style="width: 20%">Category</th>
+                <th style="width: 65%">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows_html}
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        Generated by RepoShield Zero-Trust CLI
+    </div>
+</div>
+
+</body>
+</html>
+"""
+    return html_content
