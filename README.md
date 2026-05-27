@@ -165,5 +165,3 @@ CLONE → SCAN (5 engines, air-gapped) → RISK SCORE → POLICY → PASS/WARN/F
 
 ---
 
-*Built by [Dealer-09](https://github.com/Dealer-09) for a safer open-source ecosystem.*  
-*Based on [Reposhield-V2](https://github.com/rajdeep13-coder/Reposhield-V2) by [rajdeep13-coder](https://github.com/rajdeep13-coder) & [extremecoder-rgb](https://github.com/extremecoder-rgb)*
